@@ -1,0 +1,328 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+import nltk
+import string
+import pandas as pd
+import nlp_utils as nu
+import matplotlib.pyplot as plt
+from nltk.corpus import wordnet
+
+
+# In[2]:
+
+
+from nltk.corpus import wordnet
+syns = wordnet.synsets("councelling")
+print(syns)
+
+
+# In[3]:
+
+
+df=pd.read_excel(r"C:\Users\DELL\Downloads\chatbot data - all edits.xlsx")
+df.head()
+
+
+# In[4]:
+
+
+df.isnull().sum()
+
+
+# In[5]:
+
+
+df['Question'].value_counts()
+
+
+# In[6]:
+
+
+import contractions
+
+text = '''I'll be there within 5 min. Shouldn't you be there too?
+          I'd love to see u there my dear. It's awesome to meet new friends.
+          We've been waiting for this day for so long.
+        '''
+ 
+
+expanded_words = []   
+for word in text.split():
+ 
+  expanded_words.append(contractions.fix(word))  
+   
+expanded_text = ' '.join(expanded_words)
+print('Original text: ' + text)
+print('Expanded_text: ' + expanded_text)
+
+
+# In[7]:
+
+
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+
+
+# In[8]:
+
+
+nltk.download('vader_lexicon')
+
+
+# In[9]:
+
+
+Text=df['Question']
+
+
+# In[10]:
+
+
+sid = SentimentIntensityAnalyzer()
+for sentence in Text:
+     print(sentence)
+        
+     ss = sid.polarity_scores(sentence)
+     for k in ss:
+         print('{0}: {1}, ' .format(k, ss[k]), end='')
+     print()
+
+
+# In[11]:
+
+
+analyzer = SentimentIntensityAnalyzer()
+df['rating'] = Text.apply(analyzer.polarity_scores)
+df=pd.concat([df.drop(['rating'], axis=1), df['rating'].apply(pd.Series)], axis=1)
+
+
+# In[12]:
+
+
+df
+
+
+# In[13]:
+
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+
+# In[14]:
+
+
+tfidf = TfidfVectorizer()
+
+
+# In[15]:
+
+
+factors = tfidf.fit_transform(df['Question']).toarray()
+
+
+# In[16]:
+
+
+tfidf.get_feature_names()
+
+
+# In[17]:
+
+
+from sklearn.metrics.pairwise import cosine_distances
+from nltk.stem import WordNetLemmatizer
+
+
+# In[18]:
+
+
+lemmatizer = WordNetLemmatizer()
+
+
+def chatbot(query):
+   
+    query = lemmatizer.lemmatize(query)
+   
+    query_vector = tfidf.transform([query]).toarray()
+   
+    similar_score = 1 -cosine_distances(factors,query_vector)
+    index = similar_score.argmax() 
+  
+    matching_question = df.loc[index]['Question']
+    Answer= df.loc[index]['Answer']
+    pos_score = df.loc[index]['pos']
+    neg_score = df.loc[index]['neg']
+    neu_score = df.loc[index]['neu']
+    confidence = similar_score[index][0]
+    chat_dict = {
+                'Answer':Answer,
+                'score':confidence,
+                }
+    return chat_dict 
+
+
+# In[19]:
+
+
+import enchant
+
+# Create a dictionary object for US English
+d = enchant.Dict("en_US")
+
+# Define custom shorthand rules
+shorthand_map = {
+    "r": "are","u": "you","ur": "your","n": "and","b": "be","4": "for","2": "to","m": "am","clc":  "college level counselling",
+    "1st": "first","2nd": "second","resv": "reservation","grt" : "great","cse": "computer science engineering","mech" : "mechanical engineering" ,
+    "me": "mechanical engineering","cs":"computer science engineering","ce":"civil engineering","ch" : "chemical engineering",
+    "elec":"electrical engineering","ee": "electrical engineering","ec" : "electronics and communication engineering","ece":"electronics and communication engineering",
+    "el":"electronics and communication engineering","et": "electronics and telecommunication engineering","ete" : "electronics and telecommunication engineering",
+    "cm" : "chemical engineering","it" : "information technology","au": "automobile engineering","air":"artificial intelligence and robotics engineering",
+    "mac": "mathematics and computing engineering","eeiot":"internet of things engineering by electrical dept ","(ee)iot" : "internet of things engineering by electrical dept",
+    "iot(ee)" : "internet of things engineering by electrical dept","iot(it)": "internet of things engineering by it dept","itiot": "internet of things engineering by it dept",
+    "dept":"department","aids" : "artificial intelligence and data science","aiml":"artificial intelligence and machine learning",
+    "clg": "college","chnge":"change","y" : "why","prof" :"professor","profs":"professors","pkg" :"package","hon": "Honors","credit": "Credit",
+    "MATH": "Mathematics","SCI": "Science","chem": "chemical engineering","engg":"engineering","eng":"engineering","plcmnt":"placement","engl" :" english", "lib" : "library",
+    "hstl" : "hostel","net" : "internet","+ve" : "positive","-ve" : "negative","tech": "technology","stdnt" :"student","frm": "from","dsa" : "data structures and algorithm",
+    "diff" : "difference","cgpa" : "cgpa","doc" : "document","docs": "documents","dox" : "documents","admsn" : "admission","bcs" : "because",
+    "bcz" : "because","cz" : "because","bc" : "because","sih" : "smart india hackathon","wht" : "what","whut" : "what","whr": "where",
+    "envrnmnt": "environment","lst" : "last","rq" : "require","cllg" : "college","collage" : "college","councelling": "counselling","counselling":"counselling","counseling":"counselling","counceling" : "counselling",
+    
+}
+
+# Tokenize the text input and replace shorthand words with full-forms
+input_text = "who R u CS"
+input_tokens = input_text.split()
+
+for i, token in enumerate(input_tokens):
+    if token.lower() in shorthand_map:
+        input_tokens[i] = shorthand_map[token.lower()]
+        
+        
+processed_input = " ".join(input_tokens)
+
+processed_input
+
+# Check spelling on the processed input
+#print(d.check(processed_input)) 
+
+
+# In[20]:
+
+
+def correction(input_text):
+    
+
+    d = enchant.Dict("en_US")
+
+# Define custom shorthand rules
+    shorthand_map = {
+    "r": "are","u": "you","ur": "your","n": "and","b": "be","4": "for","2": "to","m": "am","clc":  "college level counselling",
+    "1st": "first","2nd": "second","resv": "reservation","grt" : "great","cse": "computer science engineering","mech" : "mechanical engineering" ,
+    "me": "mechanical engineering","cs":"computer science engineering","ce":"civil engineering","ch" : "chemical engineering",
+    "elec":"electrical engineering","ee": "electrical engineering","ec" : "electronics and communication engineering","ece":"electronics and communication engineering",
+    "el":"electronics and communication engineering","et": "electronics and telecommunication engineering","ete" : "electronics and telecommunication engineering",
+    "cm" : "chemical engineering","it" : "information technology","au": "automobile engineering","air":"artificial intelligence and robotics engineering",
+    "mac": "mathematics and computing engineering","eeiot":"internet of things engineering by electrical dept ","(ee)iot" : "internet of things engineering by electrical dept",
+    "iot(ee)" : "internet of things engineering by electrical dept","iot(it)": "internet of things engineering by it dept","itiot": "internet of things engineering by it dept",
+    "dept":"department","aids" : "artificial intelligence and data science","aiml":"artificial intelligence and machine learning",
+    "clg": "college","chnge":"change","y" : "why","prof" :"professor","profs":"professors","pkg" :"package","hon": "Honors","credit": "Credit",
+    "MATH": "Mathematics","SCI": "Science","chem": "chemical engineering","engg":"engineering","eng":"engineering","plcmnt":"placement","engl" :" english", "lib" : "library",
+    "hstl" : "hostel","net" : "internet","+ve" : "positive","-ve" : "negative","tech": "technology","stdnt" :"student","frm": "from","dsa" : "data structures and algorithm",
+    "diff" : "difference","cgpa" : "cgpa","doc" : "document","docs": "documents","dox" : "documents","admsn" : "admission","bcs" : "because",
+    "bcz" : "because","cz" : "because","bc" : "because","sih" : "smart india hackathon","wht" : "what","whut" : "what","whr": "where",
+    "envrnmnt": "environment","lst" : "last","rq" : "require","cllg" : "college","collage" : "college","councelling": "counselling","counselling":"counselling","counseling":"counselling","counceling" : "counselling",
+    
+}
+
+# Tokenize the text input and replace shorthand words with full-forms
+    
+    input_tokens = input_text.split()
+
+    for i, token in enumerate(input_tokens):
+        if token.lower() in shorthand_map:
+            input_tokens[i] = shorthand_map[token.lower()]
+        
+        
+    processed_input = " ".join(input_tokens)
+
+    return processed_input
+
+
+# In[21]:
+
+
+pip install simple-colors
+
+
+# In[ ]:
+
+
+import random
+
+conversation_starters = [
+    "Hi there, how can I help you today?",
+    "What brings you here today?",
+    "Hello! What can I do for you?",
+    "How are you doing today?",
+    "Nice to see you! What can I assist you with?"
+]
+
+#greeting=['hi','hello','hey','hey there!','hello stnley']
+
+flag =True 
+print(" StnLey : my name is stnley.lets have some conservation !")
+while(flag==True):
+    user=input("you: ")
+    user=user.lower()
+    user=correction(user)
+    user=contractions.fix(user)
+    
+    if(user=='thanks'or user=='thank you'):
+        print("do you wanna ask more question")
+        user=input("you: ")
+        user=user.lower()
+        if(user=="yes"):
+            flag =True
+        else:
+            flag=False
+            break
+    if user in ["hii","hello","hi","hey","good morning","good afternoon","good evening","Howdy","Greetings","What's up?","yo","hi there","Hey there","hi stnley", 
+                "hola","bonjour","buongiorno","hallo","guten Tag","ciao","namaste","hello stnley","hi stnley","hey stnley","good morning stnley",
+                "good afternoon stnley","good evening stnley","Howdy stnley","Greetings","What's up stnley?","Yo stnley","Hi there stnley",
+                "Hey there stnley","hi stnley ","hola stnley","bonjour stnley","buongiorno stnley","hallo stnley","ciao stnley","namaste stnley","heyy"]:
+            print(random.choice(conversation_starters))
+            flag=True
+    elif(user=="bye"):
+        flag=False
+        break    
+        
+    else:
+        response = chatbot(user)   
+    
+        if(response['score'] > 0.3): 
+            
+            print('StnLey: ',response['Answer'] , " \n for more information you can contact :- Admission related enquirDr. Manish Dixit/Ms. Jyotsana Singh Mob.: 9343250503, 9425460166  \n ims related query --Shri. Atul Chauhan,07512409304  ims@mitsgwalior.in \n visit website -mitsgwalior.in/contactus.php ")
+            flag = True
+                
+        else:
+                  
+            print("StnLey : Please rephrase your Question \n or you can contact :- \n Admission related enquirDr. Manish Dixit/Ms. Jyotsana Singh Mob.: 9343250503, 9425460166  \n ims related query --Shri. Atul Chauhan,07512409304  ims@mitsgwalior.in \n visit website -mitsgwalior.in/contactus.php ")
+            flag=True
+        
+    
+           
+            
+            
+ 
+            
+    
+
+
+# In[ ]:
+
+
+
+
